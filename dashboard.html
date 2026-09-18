@@ -4225,7 +4225,7 @@
                 // Cek berapa key aktif dulu
                 const keysData = state.keys.rows.filter(k => k.is_active);
                 const total = keysData.length;
-                if (total > 0) el('connCheckProgress').textContent = `(0/${total})`;
+                if (total > 0) el('connCheckProgress').textContent = `(Memproses ${total} key...)`;
 
                 const data = await fetchAPI('/api/keys/health-check-all', 'POST');
                 el('connCheckProgress').textContent = `(${data.total}/${data.total})`;
