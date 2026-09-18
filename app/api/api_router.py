@@ -236,23 +236,36 @@ def api_health_check_all(db: Session = Depends(get_db)):
     Key AbuseIPDB/URLhaus/MxToolbox tidak salah divonis dead gara-gara ditembak
     ke endpoint VirusTotal.
     """
+    import concurrent.futures
+
     keys = db.query(VTAPIKey).filter(VTAPIKey.is_active == True).all()
     results = []
-    for key in keys:
-        result = route_health_check(db, key.id)
-        api_type = key.api_type or VIRUSTOTAL
-        meta = get_meta(api_type)
-        results.append({
-            "id": key.id,
-            "api_key": key.api_key[:10] + "..." if len(key.api_key) > 10 else key.api_key,
-            "api_type": api_type,
-            "api_label": meta["label"],
-            "api_emoji": meta["emoji"],
-            "api_color": meta["color"],
-            "health_status": result.get("health_status", "unknown"),
-            "status": result.get("status"),
-            "message": result.get("message"),
-        })
+    
+    def _check_key(key):
+        # We need a new session per thread to avoid SQLAlchemy connection issues
+        from app.database import SessionLocal
+        local_db = SessionLocal()
+        try:
+            result = route_health_check(local_db, key.id)
+            api_type = key.api_type or VIRUSTOTAL
+            meta = get_meta(api_type)
+            return {
+                "id": key.id,
+                "api_key": key.api_key[:10] + "..." if len(key.api_key) > 10 else key.api_key,
+                "api_type": api_type,
+                "api_label": meta["label"],
+                "api_emoji": meta["emoji"],
+                "api_color": meta["color"],
+                "health_status": result.get("health_status", "unknown"),
+                "status": result.get("status"),
+                "message": result.get("message"),
+            }
+        finally:
+            local_db.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(_check_key, keys))
+
     # Ringkasan per provider
     summary = {}
     for r in results:
