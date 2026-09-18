@@ -3140,16 +3140,11 @@
                                             <span class="adot"></span>Auto-detect
                                         </span>
                                     </label>
-                                    <input type="text" class="form-control" id="newKeyInput"
-                                        placeholder="Tempel API key apa pun — jenisnya dikenali otomatis"
+                                    <input type="text" class="form-control mb-3" id="newKeyInput"
+                                        placeholder="Masukkan API key..."
                                         autocomplete="off" spellcheck="false">
 
-                                    <div class="detect-hint" id="keyTypeHint">
-                                        <i class="bi bi-info-circle" style="color:var(--ink-4);"></i>
-                                        <span>Mendukung provider: VirusTotal, AbuseIPDB, URLhaus, MxToolbox.</span>
-                                    </div>
-
-                                    <label class="field-label mt-3" for="newKeyType">Paksa Jenis API <span
+                                    <label class="field-label" for="newKeyType">Provider <span
                                             style="text-transform:none;letter-spacing:0;color:var(--ink-4);">(opsional)</span></label>
                                     <select class="form-select mb-3" id="newKeyType">
                                         <option value="">Auto-detect (disarankan)</option>
