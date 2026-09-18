@@ -37,9 +37,9 @@ class LoadBalancer:
 
     def get_best_key(self, api_type: str = VIRUSTOTAL) -> VTAPIKey:
         """
-        SMART QUEUE: Pilih API key dengan:
-        1. Prioritas: usage_count TERTINGGI (yang mau limit dipake duluan)
-        2. Kalo sama: last_used PALING LAMA
+        ROUND ROBIN: Pilih API key dengan:
+        1. Prioritas: usage_count TERENDAH (distribusi merata ke semua key)
+        2. Kalau sama: last_used PALING LAMA (yang paling lama tidak dipakai)
         3. Hanya key yang aktif dan health_status fresh/rate_limited/unknown
         4. Hanya key yang api_type-nya cocok (default: virustotal)
         """
@@ -51,8 +51,8 @@ class LoadBalancer:
             VTAPIKey.health_status.in_(['fresh', 'rate_limited', 'unknown']),
             type_filter,
         ).order_by(
-            VTAPIKey.usage_count.desc(),  # Usage tinggi = prioritas
-            VTAPIKey.last_used.asc()       # Paling lama dipake (MySQL compatible)
+            VTAPIKey.usage_count.asc(),   # FIX: Usage TERENDAH dipilih duluan (round-robin)
+            VTAPIKey.last_used.asc()      # Paling lama tidak dipakai (MySQL compatible)
         ).first()
 
         if not key:
@@ -61,7 +61,7 @@ class LoadBalancer:
                 VTAPIKey.is_active == True,
                 type_filter,
             ).order_by(
-                VTAPIKey.usage_count.desc()
+                VTAPIKey.usage_count.asc()  # FIX: asc() di fallback juga
             ).first()
 
         return key

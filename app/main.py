@@ -5,6 +5,7 @@ from app.database import get_db, init_db
 from app.models import VTAPIKey, APIUsageLog
 from app.config import settings
 from app.api import keys, scan, dashboard
+from app.api.api_router import router as api_router
 from app.scheduler import start_scheduler, stop_scheduler
 import uvicorn
 
@@ -15,18 +16,26 @@ app = FastAPI(
 )
 
 # ========== CORS ==========
+_ALLOW_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    # Tambahkan origin internal lainnya di sini
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "x-apikey"],
 )
 
 # ========== ROUTERS ==========
-app.include_router(keys.router)
-app.include_router(scan.router)
-app.include_router(dashboard.router)
+app.include_router(keys.router)       # /keys/*  (legacy)
+app.include_router(scan.router)       # /scan/*  (legacy + /scan/multi)
+app.include_router(dashboard.router)  # /dashboard/* (legacy)
+app.include_router(api_router)        # /api/* (clean, baru)
 
 # ========== EVENTS ==========
 @app.on_event("startup")

@@ -3806,7 +3806,7 @@
 
         async function loadKeys() {
             try {
-                const data = await fetchAPI('/dashboard/keys');
+                const data = await fetchAPI('/api/keys');
                 if (!Array.isArray(data)) return;
                 state.keys.rows = data;
                 setOnline(true);
@@ -3967,7 +3967,7 @@
             el('addKeyMessage').innerHTML = '';
             out.innerHTML = `<div class="banner banner-info"><i class="bi bi-hourglass-split"></i><span>Menembak endpoint provider… (maks. 4 request ringan)</span></div>`;
             try {
-                const res = await fetchAPI('/dashboard/keys/validate', 'POST', { api_key: key, api_type: forcedType });
+                const res = await fetchAPI('/api/keys/validate', 'POST', { api_key: key, api_type: forcedType });
                 out.innerHTML = validationBanner(res);
 
                 // Badge di atas ikut dibetulkan ke hasil yang SUDAH terbukti
@@ -4013,7 +4013,7 @@
             msg.innerHTML = '';
             el('keyValidateResult').innerHTML = '';
             try {
-                const res = await fetchAPI('/dashboard/keys/add', 'POST', {
+                const res = await fetchAPI('/api/keys', 'POST', {
                     api_key: key,
                     notes: notes || null,
                     api_type: forcedType,
@@ -4056,7 +4056,7 @@
             });
             if (!ok) return;
             try {
-                await fetchAPI(`/dashboard/keys/delete/${id}`, 'DELETE');
+                await fetchAPI(`/api/keys/${id}`, 'DELETE');
                 toast('API key dihapus.', 'ok');
                 await Promise.all([loadKeys(), loadStats()]);
             } catch (e) {
@@ -4074,7 +4074,7 @@
             const btn = document.querySelector(`[data-check-key="${id}"]`);
             if (btn) { btn.disabled = true; btn.innerHTML = `<i class="bi bi-arrow-repeat spin"></i>`; }
             try {
-                const data = await fetchAPI(`/dashboard/keys/validate/${id}`, 'POST');
+                const data = await fetchAPI(`/api/keys/${id}/health`, 'POST');
                 const kind = data.health_status === 'fresh' ? 'ok' : data.health_status === 'dead' ? 'err' : 'info';
                 toast(data.message || `Status: ${data.health_status}`, kind, data.reassigned ? 6000 : undefined);
                 await Promise.all([loadKeys(), loadStats()]);
@@ -4156,7 +4156,7 @@
 
         async function loadCache() {
             try {
-                const data = await fetchAPI('/dashboard/cache');
+                const data = await fetchAPI('/api/cache');
                 if (!Array.isArray(data)) return;
                 state.cache.rows = data;
                 setOnline(true);
@@ -4178,7 +4178,7 @@
             });
             if (!ok) return;
             try {
-                const res = await fetchAPI('/dashboard/cache/refresh', 'POST');
+                const res = await fetchAPI('/api/cache/clear', 'POST');
                 toast(res.message || 'Cache dikosongkan.', 'ok');
                 await Promise.all([loadCache(), loadStats()]);
             } catch (e) {
@@ -4195,7 +4195,7 @@
             });
             if (!ok) return;
             try {
-                await fetchAPI(`/dashboard/cache/delete/${id}`, 'DELETE');
+                await fetchAPI(`/api/cache/${id}`, 'DELETE');
                 toast('Entri cache dihapus.', 'ok');
                 await Promise.all([loadCache(), loadStats()]);
             } catch (e) {
@@ -4341,7 +4341,7 @@
 
         async function loadStats() {
             try {
-                const data = await fetchAPI('/dashboard/stats');
+                const data = await fetchAPI('/api/stats');
                 state.stats = data || {};
                 el('statTotalKeys').textContent = fmtNum(data.total_keys || 0);
                 el('statActiveKeys').textContent = fmtNum(data.active_keys || 0);
@@ -4812,7 +4812,26 @@
             </div>`;
         }
 
-        function buildBulkMini(analysis, raw) {
+        function buildBulkMini(finalOrAnalysis, dataOrRaw) {
+            // Multi-source response dari /api/scan: finalOrAnalysis = data.final
+            if (finalOrAnalysis && finalOrAnalysis.verdict && finalOrAnalysis.confidence !== undefined) {
+                const fv = String(finalOrAnalysis.verdict || 'UNKNOWN').toUpperCase();
+                const conf = finalOrAnalysis.confidence || 0;
+                const rec  = finalOrAnalysis.recommendation || '';
+                const toneMap = { MALICIOUS: 'pill-crit', SUSPICIOUS: 'pill-warn', CLEAN: 'pill-ok', UNKNOWN: 'pill-none' };
+                const recTone = fv === 'MALICIOUS' ? 'pill-crit' : fv === 'SUSPICIOUS' ? 'pill-warn' : 'pill-ok';
+                const srcOk = (dataOrRaw && dataOrRaw.sources) ? dataOrRaw.sources.filter(s => s.status === 'ok').length : 0;
+                return `<div class="bulk-mini">
+                    ${verdictBadge(fv)}
+                    <span class="${toneMap[fv] || 'pill-none'} pill"><i class="bi bi-shield-fill"></i>${escapeHtml(fv)}</span>
+                    <span class="${recTone} pill">${escapeHtml(rec)}</span>
+                    <span class="pill pill-count">conf ${conf}%</span>
+                    ${srcOk ? `<span class="pill pill-count">${srcOk} sumber</span>` : ''}
+                </div>`;
+            }
+            // Legacy format (analysis object dari VT single scan)
+            const analysis = finalOrAnalysis;
+            const raw = dataOrRaw;
             if (!analysis) return '';
             const tl = String(analysis.threat_level || 'UNKNOWN').toUpperCase();
             const vd = String(analysis.verdict || 'UNKNOWN').toUpperCase();
@@ -4831,6 +4850,7 @@
                 <span style="font-size:.68rem;color:var(--st-warn);">${fmtNum(analysis.suspicious)} suspicious</span>
             </div>`;
         }
+
 
         /* ============================================================
            AUTO-DETECT SCAN TYPE
@@ -5236,9 +5256,7 @@
                 let status = 'success';
                 let data = {};
                 try {
-                    const itemType = detectScanType(item) || 'hash';
-                    data = await fetchAPI(`/scan/${itemType}`, 'POST', { [itemType]: item });
-                    data._detectedType = itemType;
+                    data = await fetchAPI('/api/scan', 'POST', { input: item });
                     okCount++;
                 } catch (e) {
                     status = 'error';
@@ -5250,26 +5268,15 @@
                 el('bulkSuccess').textContent = okCount;
                 el('bulkError').textContent = errCount;
 
-                const analysis = status === 'success' ? (data.analysis || null) : null;
-                const raw = status === 'success' ? (data.raw || data) : data;
-                const detectedType = (status === 'success' && data._detectedType) ? data._detectedType : detectScanType(item) || 'hash';
-                state.bulk.push({ input: item, scan_type: detectedType, status, analysis, raw });
+                const detectedType = (status === 'success' && data.input_type) ? data.input_type : detectScanType(item) || 'hash';
+                const finalVerdict = status === 'success' ? (data.final?.verdict || 'UNKNOWN') : 'ERROR';
+                state.bulk.push({ input: item, scan_type: detectedType, status, final: data.final, data });
 
                 const jid = 'bj' + i + Math.random().toString(36).slice(2, 6);
                 jsonStore.set(jid, raw);
 
                 const detail = status === 'success'
-                    ? `${buildAnalysisBox(analysis, raw)}
-                       <div class="json-panel" data-json-id="${jid}">
-                           <div class="json-head">
-                               <span class="jh-title">Raw JSON</span>
-                               <div class="jh-actions">
-                                   <button class="btn btn-ghost btn-sm" data-copy-json="${jid}"><i class="bi bi-clipboard"></i> Copy</button>
-                                   <button class="btn btn-ghost btn-sm" data-save-json="${jid}" data-name="vt-${detectedType}-${i + 1}"><i class="bi bi-download"></i> JSON</button>
-                               </div>
-                           </div>
-                           <pre class="json">${highlightJson(raw)}</pre>
-                       </div>`
+                    ? `${buildMultiReport(data)}`
                     : `<div class="banner banner-err"><i class="bi bi-exclamation-octagon"></i><span>${escapeHtml(data.error)}</span></div>`;
 
                 results.insertAdjacentHTML('beforeend', `
@@ -5277,7 +5284,7 @@
                         <div class="bulk-item-head">
                             <div class="bi-main">
                                 <div class="bulk-item-input">${escapeHtml(item)}</div>
-                                ${status === 'success' ? buildBulkMini(analysis, raw) : ''}
+                                ${status === 'success' ? buildBulkMini(data.final, data) : ''}
                             </div>
                             <span class="pill ${status === 'success' ? 'pill-ok' : 'pill-crit'}">
                                 <span class="pdot"></span>${status === 'success' ? 'OK' : 'Gagal'}

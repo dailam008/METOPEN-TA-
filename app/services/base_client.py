@@ -11,6 +11,7 @@ Tiap subclass cukup isi: api_type, base_url, _auth_headers(), dan method scan-ny
 """
 
 import httpx
+from datetime import timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,9 @@ from app.models import CacheScan, VTAPIKey
 from app.services.key_detector import get_meta
 from app.services.load_balancer import LoadBalancer
 from app.utils.timeutil import now_local
+
+# Umur maksimum cache yang masih dianggap valid (setelah ini, hit API lagi)
+CACHE_TTL_DAYS = 3
 
 # Status per-sumber yang dipakai di aggregated report
 STATUS_OK = "ok"          # API dipanggil, data ketemu
@@ -68,11 +72,13 @@ class BaseThreatClient:
     # CACHE (multi-source: identifier + scan_type + source)
     # ============================================================
     def _check_cache(self, identifier: str, scan_type: str) -> Optional[dict]:
-        """Cek apakah hasil scan dari SUMBER INI udah ada di cache."""
+        """Cek apakah hasil scan dari SUMBER INI udah ada di cache dan masih fresh (< 3 hari)."""
+        cutoff = now_local() - timedelta(days=CACHE_TTL_DAYS)
         cache = self.db.query(CacheScan).filter(
             CacheScan.identifier == identifier,
             CacheScan.scan_type == scan_type,
             CacheScan.source == self.api_type,
+            CacheScan.scan_date >= cutoff,   # TTL: abaikan cache yang sudah kadaluarsa
         ).first()
 
         if cache:
