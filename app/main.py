@@ -16,19 +16,14 @@ app = FastAPI(
 )
 
 # ========== CORS ==========
-_ALLOW_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    # Tambahkan origin internal lainnya di sini
-]
+# Wildcard untuk deployment internal — semua origin diizinkan
+# Ini aman selama server hanya diakses dari jaringan internal
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_ALLOW_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "x-apikey"],
+    allow_origins=["*"],
+    allow_credentials=False,   # harus False jika allow_origins=["*"]
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ========== ROUTERS ==========
