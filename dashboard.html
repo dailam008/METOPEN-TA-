@@ -5182,7 +5182,7 @@
                 </div></div>`;
 
             try {
-                const data = await fetchAPI('/scan/multi', 'POST', { input });
+                const data = await fetchAPI('/api/scan', 'POST', { input });
 
                 out.innerHTML = buildMultiReport(data);
 
@@ -5272,6 +5272,8 @@
                 const finalVerdict = status === 'success' ? (data.final?.verdict || 'UNKNOWN') : 'ERROR';
                 state.bulk.push({ input: item, scan_type: detectedType, status, final: data.final, data });
 
+                // Simpan raw JSON response ke store untuk tombol JSON per-item
+                const raw = status === 'success' ? data : { error: data.error, input: item };
                 const jid = 'bj' + i + Math.random().toString(36).slice(2, 6);
                 jsonStore.set(jid, raw);
 
