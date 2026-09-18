@@ -3145,9 +3145,8 @@
                                         autocomplete="off" spellcheck="false">
 
                                     <div class="detect-hint" id="keyTypeHint">
-                                        <i class="bi bi-magic" style="color:var(--ink-4);"></i>
-                                        <span>Jenis API dikenali otomatis dari format key: 🟢 VirusTotal · 🔵 AbuseIPDB
-                                            · 🟡 URLhaus · 🟣 MxToolbox</span>
+                                        <i class="bi bi-info-circle" style="color:var(--ink-4);"></i>
+                                        <span>Mendukung provider: VirusTotal, AbuseIPDB, URLhaus, MxToolbox.</span>
                                     </div>
 
                                     <label class="field-label mt-3" for="newKeyType">Paksa Jenis API <span
@@ -3167,10 +3166,7 @@
 
                                     <label class="opt-check" for="validateKeyToggle">
                                         <input type="checkbox" id="validateKeyToggle" checked>
-                                        <span><strong style="color:var(--ink-2);">Validasi dengan test ping</strong> —
-                                            key ditembak ke API provider dulu buat memastikan jenisnya. URLhaus dan
-                                            AbuseIPDB punya format yang identik, jadi cuma cara ini yang bisa
-                                            membedakan.</span>
+                                        <span><strong style="color:var(--ink-2);">Validasi via Test Ping</strong> (Menguji koneksi dan memastikan provider secara akurat).</span>
                                     </label>
 
                                     <div style="display:flex;gap:8px;">
@@ -3280,8 +3276,7 @@
                             </div>
                             <div class="bulk-meta" id="scanHint" style="margin-top:8px;">
                                 <i class="bi bi-magic" style="color:var(--ink-3);"></i>
-                                <span id="scanHintText" style="color:var(--ink-3);">Tipe scan otomatis terdeteksi dari
-                                    input — tidak perlu pilih manual</span>
+                                <span id="scanHintText" style="color:var(--ink-3);">Auto-detect tipe input (IP/Domain/URL/Hash).</span>
                             </div>
                         </div>
                     </div>
@@ -3300,14 +3295,7 @@
                                 <div class="card-body">
                                     <div class="banner banner-info mb-4">
                                         <i class="bi bi-info-circle"></i>
-                                        <span>Satu item per baris, atau pisahkan dengan koma. Hasil otomatis masuk
-                                            cache.</span>
-                                    </div>
-
-                                    <div class="banner banner-info mb-3" style="font-size:.78rem;padding:8px 12px;">
-                                        <i class="bi bi-magic"></i>
-                                        <span><strong>Auto-detect aktif</strong> — tiap baris dideteksi otomatis. Campur
-                                            hash, URL, IP, domain sesuka kamu!</span>
+                                        <span>Masukkan beberapa IP, domain, URL, atau hash (pisahkan dengan baris baru atau koma). Tipe akan dideteksi secara otomatis.</span>
                                     </div>
 
                                     <label class="field-label" for="bulkInput">Input Data</label>
