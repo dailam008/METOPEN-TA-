@@ -3892,7 +3892,6 @@
 
         function updateKeyTypeBadge() {
             const badge = el('keyTypeBadge');
-            const hint = el('keyTypeHint');
             const forced = el('newKeyType').value;
             const value = el('newKeyInput').value;
 
@@ -3900,8 +3899,6 @@
                 const m = srcMeta(forced);
                 badge.style.setProperty('--api-color', m.color);
                 badge.innerHTML = `${m.emoji} ${m.label}`;
-                hint.innerHTML = `<i class="bi bi-hand-index" style="color:var(--ink-4);"></i>
-                    <span>Jenis API dipilih manual — auto-detect dilewati.</span>`;
                 return;
             }
 
@@ -3909,21 +3906,12 @@
             if (!d) {
                 badge.style.setProperty('--api-color', '#7c8aa5');
                 badge.innerHTML = `<span class="adot"></span>Auto-detect`;
-                hint.innerHTML = `<i class="bi bi-magic" style="color:var(--ink-4);"></i>
-                    <span>Jenis API dikenali otomatis dari format key: 🟢 VirusTotal · 🔵 AbuseIPDB · 🟡 URLhaus · 🟣 MxToolbox</span>`;
                 return;
             }
 
             const m = srcMeta(d.type);
-            const confIcon = { high: 'bi-check-circle-fill', medium: 'bi-info-circle-fill', low: 'bi-question-circle-fill' }[d.confidence];
-            const confColor = { high: 'var(--st-ok)', medium: 'var(--st-warn)', low: 'var(--ink-4)' }[d.confidence];
             badge.style.setProperty('--api-color', m.color);
             badge.innerHTML = `${m.emoji} ${m.label} <span style="opacity:.6;font-weight:500;">· tebakan</span>`;
-            hint.innerHTML = `<i class="bi ${confIcon}" style="color:${confColor};"></i>
-                <span>${escapeHtml(d.reason)} <span style="color:var(--ink-4);">(keyakinan ${escapeHtml(d.confidence)})</span>
-                ${d.ambiguous
-                    ? '<br><strong style="color:var(--st-warn);">Format ini ambigu</strong> — klik <strong>Test Key</strong> untuk memastikan jenisnya lewat API provider.'
-                    : ''}</span>`;
         }
 
         /* ============================================================
