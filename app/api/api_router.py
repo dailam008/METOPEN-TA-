@@ -249,6 +249,10 @@ def api_health_check_all(db: Session = Depends(get_db)):
             result = route_health_check(local_db, key.id)
             api_type = key.api_type or VIRUSTOTAL
             meta = get_meta(api_type)
+            
+            # Note: route_health_check (from base_client.py) returns the health string in the "status" field,
+            # so we use result.get("status") as the health_status.
+            health_val = result.get("status", "unknown")
             return {
                 "id": key.id,
                 "api_key": key.api_key[:10] + "..." if len(key.api_key) > 10 else key.api_key,
@@ -256,8 +260,8 @@ def api_health_check_all(db: Session = Depends(get_db)):
                 "api_label": meta["label"],
                 "api_emoji": meta["emoji"],
                 "api_color": meta["color"],
-                "health_status": result.get("health_status", "unknown"),
-                "status": result.get("status"),
+                "health_status": health_val,
+                "status": health_val,
                 "message": result.get("message"),
             }
         finally:
