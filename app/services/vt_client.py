@@ -44,7 +44,37 @@ class VTClient(BaseThreatClient):
         return self.call_with_cache(scan_type, identifier, endpoint, params=params)
 
     def scan_url(self, url: str) -> dict:
-        return self.call_with_cache("url", url, "urls", params={"url": url})
+        """
+        VT API v3 — URL scan:
+        1. POST /urls  (form-encoded: url=<url>) → dapat url_id
+        2. GET  /urls/{url_id} → ambil report analisis
+
+        VT tidak menerima GET /urls?url=... (→ 405 Method Not Allowed)
+        """
+        import base64
+        # Derive url_id: base64url tanpa padding dari URL asli
+        url_id = base64.urlsafe_b64encode(url.encode()).rstrip(b"=").decode()
+
+        # Cek cache dulu (pakai url_id sebagai cache_key agar konsisten)
+        cached = self._check_cache(url_id, "url")
+        if cached is not None:
+            if isinstance(cached, dict):
+                return {**cached, "_from_cache": True}
+            return cached
+
+        # Step 1: Submit URL ke VT untuk dianalisis
+        submit = self._request("urls", method="POST", data={"url": url})
+        if not submit or "error" in submit:
+            # Kalau submit gagal, coba langsung GET report (mungkin URL sudah pernah disubmit)
+            result = self._request(f"urls/{url_id}", method="GET")
+        else:
+            # Step 2: Ambil report berdasarkan url_id
+            result = self._request(f"urls/{url_id}", method="GET")
+
+        if result and "error" not in result:
+            self._save_cache(url_id, "url", result)
+
+        return result
 
     def scan_hash(self, hash_value: str) -> dict:
         return self.call_with_cache("hash", hash_value, f"files/{hash_value}")

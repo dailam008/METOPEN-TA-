@@ -207,6 +207,9 @@ class BaseThreatClient:
 
                 else:
                     last_error = f"{self.meta['label']} HTTP {response.status_code}"
+                    # 405 = method/endpoint salah — bukan masalah key, stop langsung
+                    if response.status_code == 405:
+                        return {"error": f"{self.meta['label']} HTTP 405 (Method Not Allowed)", "error_kind": STATUS_ERROR}
                     self.load_balancer.mark_error(key.id)
                     continue
 

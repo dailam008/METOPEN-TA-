@@ -3198,6 +3198,10 @@
                                             <input type="search" id="keysSearch" placeholder="Cari key / notes…"
                                                 autocomplete="off">
                                         </div>
+                                        <button class="btn btn-ghost btn-sm" id="checkAllKeysBtn"
+                                            title="Cek koneksi & status semua API key ke provider masing-masing">
+                                            <i class="bi bi-broadcast-pin"></i> Cek Koneksi Semua
+                                        </button>
                                         <button class="btn btn-ghost btn-sm" id="exportKeys"
                                             title="Unduh daftar key sebagai CSV">
                                             <i class="bi bi-download"></i> CSV
@@ -3212,6 +3216,35 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- ============ MODAL: CEK KONEKSI SEMUA KEY ============ -->
+                <div id="connCheckModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(6,10,18,.82);backdrop-filter:blur(6px);overflow-y:auto;">
+                    <div style="min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;">
+                        <div style="background:var(--surface-1);border:1px solid var(--border-strong);border-radius:18px;max-width:780px;width:100%;box-shadow:0 24px 72px rgba(0,0,0,.6);">
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 28px 18px;border-bottom:1px solid var(--border);">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <i class="bi bi-broadcast-pin" style="font-size:1.3rem;color:var(--accent);"></i>
+                                    <div>
+                                        <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--ink);">Cek Koneksi & Status API Key</h3>
+                                        <p style="margin:0;font-size:.76rem;color:var(--ink-3);" id="connCheckSub">Menembak endpoint provider untuk tiap key…</p>
+                                    </div>
+                                </div>
+                                <button class="btn btn-ghost btn-icon" id="connCheckClose" aria-label="Tutup"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            <div style="padding:24px 28px;" id="connCheckBody">
+                                <div style="text-align:center;padding:40px 0;" id="connCheckLoading">
+                                    <i class="bi bi-arrow-repeat spin" style="font-size:2rem;color:var(--accent);display:block;margin-bottom:12px;"></i>
+                                    <p style="color:var(--ink-2);margin:0;">Mengecek semua key aktif… <span id="connCheckProgress"></span></p>
+                                </div>
+                                <div id="connCheckResult" style="display:none;"></div>
+                            </div>
+                            <div style="padding:16px 28px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;" id="connCheckFooter" style="display:none;">
+                                <button class="btn btn-ghost" id="connCheckRerun"><i class="bi bi-arrow-repeat"></i> Cek Ulang</button>
+                                <button class="btn btn-primary" id="connCheckDone">Selesai</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- ============ VIEW: SCAN ============ -->
                 <section class="view" id="view-scan">
@@ -4089,6 +4122,132 @@
             if (!k || !k.full_key) { toast('Key lengkap tidak tersedia.', 'err'); return; }
             const ok = await copyText(k.full_key);
             toast(ok ? 'API key disalin ke clipboard.' : 'Browser menolak akses clipboard.', ok ? 'ok' : 'err');
+        }
+
+        /* ============================================================
+           CEK KONEKSI SEMUA KEY — modal dengan hasil per-provider
+           ============================================================ */
+        function healthStatusIcon(hs) {
+            switch(hs) {
+                case 'fresh':        return '<i class="bi bi-check-circle-fill" style="color:var(--st-ok);"></i>';
+                case 'rate_limited': return '<i class="bi bi-exclamation-circle-fill" style="color:var(--st-warn);"></i>';
+                case 'dead':         return '<i class="bi bi-x-circle-fill" style="color:var(--st-crit);"></i>';
+                default:             return '<i class="bi bi-question-circle-fill" style="color:var(--ink-4);"></i>';
+            }
+        }
+
+        function healthStatusLabel(hs) {
+            return { fresh: '🟢 Aktif', rate_limited: '🟡 Rate Limited', dead: '❌ Invalid / Dead', unknown: '❓ Unknown' }[hs] || '❓ Unknown';
+        }
+
+        function renderConnCheckResult(data) {
+            const modal = el('connCheckModal');
+            const body = el('connCheckResult');
+            const loading = el('connCheckLoading');
+            const footer = el('connCheckFooter');
+            const sub = el('connCheckSub');
+
+            loading.style.display = 'none';
+            body.style.display = 'block';
+            footer.style.display = 'flex';
+            sub.textContent = `Selesai — ${data.total} key dicek dari ${(data.summary || []).length} provider.`;
+
+            // Summary kartu per-provider
+            const summaryHtml = (data.summary || []).map(s => {
+                const healthy = s.fresh;
+                const limited = s.rate_limited;
+                const dead = s.dead;
+                const unk = s.unknown || 0;
+                const total = s.total;
+                const allOk = dead === 0 && total > 0;
+                const allDead = total > 0 && dead === total;
+                const borderColor = allOk ? 'var(--st-ok)' : allDead ? 'var(--st-crit)' : 'var(--st-warn)';
+                return `
+                <div style="background:var(--surface-2);border:1px solid var(--border);border-left:3px solid ${borderColor};border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                        <span class="api-chip" style="--api-color:${escapeHtml(s.api_color)};font-size:.85rem;">${escapeHtml(s.api_emoji)} ${escapeHtml(s.api_label)}</span>
+                        <span style="margin-left:auto;font-size:.78rem;color:var(--ink-3);"><strong style="color:var(--ink-2);">${total}</strong> key dicek</span>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        ${healthy > 0 ? `<span style="background:rgba(12,163,12,.12);color:var(--st-ok);border-radius:8px;padding:4px 12px;font-size:.78rem;font-weight:600;"><i class="bi bi-check-circle-fill"></i> ${healthy} Aktif</span>` : ''}
+                        ${limited > 0 ? `<span style="background:rgba(250,178,25,.12);color:var(--st-warn);border-radius:8px;padding:4px 12px;font-size:.78rem;font-weight:600;"><i class="bi bi-exclamation-circle-fill"></i> ${limited} Rate Limited</span>` : ''}
+                        ${dead > 0 ? `<span style="background:rgba(208,59,59,.12);color:var(--st-crit);border-radius:8px;padding:4px 12px;font-size:.78rem;font-weight:600;"><i class="bi bi-x-circle-fill"></i> ${dead} Invalid/Dead</span>` : ''}
+                        ${unk > 0 ? `<span style="background:rgba(92,107,135,.12);color:var(--ink-3);border-radius:8px;padding:4px 12px;font-size:.78rem;font-weight:600;"><i class="bi bi-question-circle-fill"></i> ${unk} Unknown</span>` : ''}
+                        ${total === 0 ? `<span style="color:var(--ink-4);font-size:.78rem;">Tidak ada key aktif untuk provider ini.</span>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Detail per key
+            const detailHtml = (data.results || []).map(r => `
+                <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+                    ${healthStatusIcon(r.health_status)}
+                    <code style="font-size:.78rem;color:var(--ink-2);flex:0 0 auto;">${escapeHtml(r.api_key)}</code>
+                    <span class="api-chip" style="--api-color:${escapeHtml(r.api_color)};font-size:.72rem;">` +
+                        `${escapeHtml(r.api_emoji || '')} ${escapeHtml(r.api_label || r.api_type)}</span>
+                    <span style="margin-left:auto;font-size:.76rem;color:var(--ink-3);">${escapeHtml(r.message || healthStatusLabel(r.health_status))}</span>
+                </div>`
+            ).join('');
+
+            body.innerHTML = `
+                <div style="margin-bottom:20px;">${summaryHtml}</div>
+                ${data.results && data.results.length > 0 ? `
+                <div style="margin-top:4px;">
+                    <div style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-bottom:8px;">Detail Per Key</div>
+                    ${detailHtml}
+                </div>` : '<p style="color:var(--ink-3);text-align:center;padding:20px 0;">Tidak ada key aktif yang bisa dicek.</p>'}
+            `;
+        }
+
+        async function checkAllKeys() {
+            const modal = el('connCheckModal');
+            const loading = el('connCheckLoading');
+            const result = el('connCheckResult');
+            const footer = el('connCheckFooter');
+            const sub = el('connCheckSub');
+            const btn = el('checkAllKeysBtn');
+
+            // Reset state modal
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            footer.style.display = 'none';
+            sub.textContent = 'Menembak endpoint provider untuk tiap key…';
+            el('connCheckProgress').textContent = '';
+
+            // Tampilkan modal
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Mengecek…`;
+
+            try {
+                // Cek berapa key aktif dulu
+                const keysData = state.keys.rows.filter(k => k.is_active);
+                const total = keysData.length;
+                if (total > 0) el('connCheckProgress').textContent = `(0/${total})`;
+
+                const data = await fetchAPI('/api/keys/health-check-all', 'POST');
+                el('connCheckProgress').textContent = `(${data.total}/${data.total})`;
+                renderConnCheckResult(data);
+                toast(`Selesai cek ${data.total} key.`, 'ok');
+                // Reload tabel key supaya status terbaru tampil
+                await loadKeys();
+            } catch (e) {
+                el('connCheckLoading').style.display = 'none';
+                el('connCheckResult').style.display = 'block';
+                el('connCheckResult').innerHTML = `<div class="banner banner-err"><i class="bi bi-exclamation-octagon"></i><span>Gagal cek koneksi: ${escapeHtml(e.message)}</span></div>`;
+                el('connCheckFooter').style.display = 'flex';
+                toast(`Gagal: ${e.message}`, 'err');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-broadcast-pin"></i> Cek Koneksi Semua`;
+            }
+        }
+
+        function closeConnCheckModal() {
+            el('connCheckModal').style.display = 'none';
+            document.body.style.overflow = '';
         }
 
         /* ============================================================
@@ -5383,6 +5542,22 @@
         el('exportCache').addEventListener('click', exportCacheCSV);
         el('exportKeys').addEventListener('click', exportKeysCSV);
         el('exportBulk').addEventListener('click', exportBulkJSON);
+
+        // Cek Koneksi Semua — tombol + modal
+        el('checkAllKeysBtn').addEventListener('click', checkAllKeys);
+        el('connCheckClose').addEventListener('click', closeConnCheckModal);
+        el('connCheckDone').addEventListener('click', closeConnCheckModal);
+        el('connCheckRerun').addEventListener('click', checkAllKeys);
+        // Tutup modal kalau klik backdrop (luar modal card)
+        el('connCheckModal').addEventListener('click', (e) => {
+            if (e.target === el('connCheckModal') || e.target === e.currentTarget.firstElementChild) {
+                closeConnCheckModal();
+            }
+        });
+        // Tutup modal dengan Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && el('connCheckModal').style.display !== 'none') closeConnCheckModal();
+        });
 
         el('refreshAll').addEventListener('click', async (e) => {
             const b = e.currentTarget;

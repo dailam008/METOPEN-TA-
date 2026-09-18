@@ -37,7 +37,6 @@ from app.services.key_detector import (
 )
 from app.services import key_validator
 from app.services.registry import health_check_key as route_health_check, key_stats
-from app.services.vt_client import VTClient
 from sqlalchemy import func
 
 router = APIRouter(prefix="/api", tags=["API v2"])
@@ -232,9 +231,107 @@ def api_health_check_key(key_id: int, db: Session = Depends(get_db)):
 
 @router.post("/keys/health-check-all")
 def api_health_check_all(db: Session = Depends(get_db)):
-    """Health check semua key aktif (tiap key ke provider-nya masing-masing)."""
-    client = VTClient(db)
-    return client.health_check_all_keys()
+    """
+    Health check semua key aktif — tiap key dites ke provider-nya masing-masing.
+    Key AbuseIPDB/URLhaus/MxToolbox tidak salah divonis dead gara-gara ditembak
+    ke endpoint VirusTotal.
+    """
+    keys = db.query(VTAPIKey).filter(VTAPIKey.is_active == True).all()
+    results = []
+    for key in keys:
+        result = route_health_check(db, key.id)
+        api_type = key.api_type or VIRUSTOTAL
+        meta = get_meta(api_type)
+        results.append({
+            "id": key.id,
+            "api_key": key.api_key[:10] + "..." if len(key.api_key) > 10 else key.api_key,
+            "api_type": api_type,
+            "api_label": meta["label"],
+            "api_emoji": meta["emoji"],
+            "api_color": meta["color"],
+            "health_status": result.get("health_status", "unknown"),
+            "status": result.get("status"),
+            "message": result.get("message"),
+        })
+    # Ringkasan per provider
+    summary = {}
+    for r in results:
+        t = r["api_type"]
+        if t not in summary:
+            summary[t] = {
+                "api_type": t,
+                "api_label": r["api_label"],
+                "api_emoji": r["api_emoji"],
+                "api_color": r["api_color"],
+                "total": 0, "fresh": 0, "rate_limited": 0, "dead": 0, "unknown": 0,
+            }
+        summary[t]["total"] += 1
+        hs = r["health_status"]
+        if hs in summary[t]:
+            summary[t][hs] += 1
+        else:
+            summary[t]["unknown"] += 1
+    return {
+        "total": len(results),
+        "results": results,
+        "summary": list(summary.values()),
+    }
+
+
+@router.get("/keys/status")
+def api_keys_status(db: Session = Depends(get_db)):
+    """
+    Ringkasan status semua key per provider — TANPA melakukan health check baru.
+    Hanya membaca health_status yang sudah tersimpan di database.
+    Cocok untuk ditampilkan di dashboard overview (murah, tidak pakai kuota API).
+    """
+    keys = db.query(VTAPIKey).all()
+    from app.services.registry import SOURCE_ORDER
+    summary = {}
+    for api_type in SOURCE_ORDER:
+        meta = get_meta(api_type)
+        summary[api_type] = {
+            "api_type": api_type,
+            "api_label": meta["label"],
+            "api_emoji": meta["emoji"],
+            "api_color": meta["color"],
+            "api_icon": meta["icon"],
+            "total": 0, "active": 0,
+            "fresh": 0, "rate_limited": 0, "dead": 0, "unknown": 0,
+            "inactive": 0,
+        }
+
+    for k in keys:
+        t = k.api_type or VIRUSTOTAL
+        if t not in summary:
+            meta = get_meta(t)
+            summary[t] = {
+                "api_type": t,
+                "api_label": meta["label"],
+                "api_emoji": meta["emoji"],
+                "api_color": meta["color"],
+                "api_icon": meta["icon"],
+                "total": 0, "active": 0,
+                "fresh": 0, "rate_limited": 0, "dead": 0, "unknown": 0,
+                "inactive": 0,
+            }
+        s = summary[t]
+        s["total"] += 1
+        if k.is_active:
+            s["active"] += 1
+        else:
+            s["inactive"] += 1
+        hs = k.health_status or "unknown"
+        if hs in s:
+            s[hs] += 1
+        else:
+            s["unknown"] += 1
+
+    return {
+        "providers": list(summary.values()),
+        "total_keys": len(keys),
+        "active_keys": sum(1 for k in keys if k.is_active),
+    }
 
 
 @router.get("/keys/types")
